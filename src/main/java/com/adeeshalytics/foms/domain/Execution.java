@@ -22,6 +22,10 @@ public class Execution {
         this.quantity = quantity; this.executionPrice = executionPrice; this.executedAt = executedAt;
     }
     public UUID getId() { return id; }
+    public Order getBuyOrder() { return buyOrder; }
+    public Order getSellOrder() { return sellOrder; }
+    public Instrument getInstrument() { return instrument; }
     public long getQuantity() { return quantity; }
     public BigDecimal getExecutionPrice() { return executionPrice; }
+    public Instant getExecutedAt() { return executedAt; }
 }
