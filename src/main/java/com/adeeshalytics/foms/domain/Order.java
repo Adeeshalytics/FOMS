@@ -68,6 +68,7 @@ public class Order {
     private void requireStatus(OrderStatus expected, String action) { if (status != expected) throw new IllegalStateException("cannot " + action + " order in " + status + " status"); }
     public UUID getId() { return id; }
     public String getClientId() { return clientId; }
+    public String getClientOrderId() { return clientOrderId; }
     public Instrument getInstrument() { return instrument; }
     public OrderSide getSide() { return side; }
     public OrderType getOrderType() { return orderType; }
@@ -78,4 +79,6 @@ public class Order {
     public BigDecimal getAverageExecutionPrice() { return averageExecutionPrice; }
     public OrderStatus getStatus() { return status; }
     public Instant getAcceptedAt() { return acceptedAt; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
 }

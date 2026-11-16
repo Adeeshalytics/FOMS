@@ -33,6 +33,9 @@ public class Instrument {
     @PreUpdate void updated() { updatedAt = Instant.now(); }
     public UUID getId() { return id; }
     public String getSymbol() { return symbol; }
+    public String getName() { return name; }
+    public AssetType getAssetType() { return assetType; }
+    public String getCurrency() { return currency; }
     public boolean isActive() { return active; }
     public BigDecimal getTickSize() { return tickSize; }
     public void update(String name, AssetType assetType, String currency, boolean active, BigDecimal tickSize) {

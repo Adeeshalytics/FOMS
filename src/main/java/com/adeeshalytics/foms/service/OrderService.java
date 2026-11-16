@@ -24,7 +24,7 @@ public class OrderService {
 
     @Transactional
     public Order submit(SubmitOrderCommand command) {
-        Instrument instrument = instruments.findBySymbol(command.symbol()).orElseThrow(() -> new IllegalArgumentException("instrument not found"));
+        Instrument instrument = instruments.findBySymbol(command.symbol()).orElseThrow(() -> new ResourceNotFoundException("instrument not found"));
         if (!instrument.isActive()) throw new IllegalStateException("instrument is inactive");
         ReentrantLock lock = locks.forInstrument(instrument.getId());
         lock.lock();
@@ -50,5 +50,30 @@ public class OrderService {
             }
             return incoming;
         } finally { lock.unlock(); }
+    }
+
+    @Transactional(readOnly = true)
+    public Order find(java.util.UUID id) { return orders.findById(id).orElseThrow(() -> new ResourceNotFoundException("order not found")); }
+
+    @Transactional(readOnly = true)
+    public Order find(String clientId, String clientOrderId) { return orders.findByClientIdAndClientOrderId(clientId, clientOrderId).orElseThrow(() -> new ResourceNotFoundException("order not found")); }
+
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<Order> list(org.springframework.data.domain.Pageable pageable) { return orders.findAll(pageable); }
+
+    @Transactional
+    public Order cancel(java.util.UUID orderId) {
+        Order order = find(orderId);
+        ReentrantLock lock = locks.forInstrument(order.getInstrument().getId()); lock.lock();
+        try { order.cancel(); auditEvents.save(new AuditEvent(order, "CANCELLED", "{}")); return order; }
+        finally { lock.unlock(); }
+    }
+
+    @Transactional
+    public Order amend(java.util.UUID orderId, long quantity, java.math.BigDecimal price) {
+        Order order = find(orderId);
+        ReentrantLock lock = locks.forInstrument(order.getInstrument().getId()); lock.lock();
+        try { order.amend(quantity, price, Instant.now()); auditEvents.save(new AuditEvent(order, "AMENDED", "{}")); return order; }
+        finally { lock.unlock(); }
     }
 }

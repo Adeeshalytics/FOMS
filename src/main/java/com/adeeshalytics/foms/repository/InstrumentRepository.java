@@ -7,4 +7,5 @@ import java.util.UUID;
 
 public interface InstrumentRepository extends JpaRepository<Instrument, UUID> {
     Optional<Instrument> findBySymbol(String symbol);
+    boolean existsBySymbol(String symbol);
 }
