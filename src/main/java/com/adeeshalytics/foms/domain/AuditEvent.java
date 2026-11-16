@@ -17,4 +17,9 @@ public class AuditEvent {
     @Column(nullable = false, columnDefinition = "jsonb") private String details;
     protected AuditEvent() { }
     public AuditEvent(Order order, String eventType, String details) { this.order = order; this.eventType = eventType; this.details = details; this.occurredAt = Instant.now(); }
+    public UUID getId() { return id; }
+    public Order getOrder() { return order; }
+    public String getEventType() { return eventType; }
+    public Instant getOccurredAt() { return occurredAt; }
+    public String getDetails() { return details; }
 }
