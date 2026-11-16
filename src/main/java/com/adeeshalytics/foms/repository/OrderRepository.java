@@ -16,4 +16,6 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     List<Order> findActiveByInstrumentId(@Param("instrumentId") UUID instrumentId, @Param("statuses") Collection<OrderStatus> statuses);
     @Query("select o from Order o join fetch o.instrument where o.status in :statuses")
     List<Order> findAllActive(@Param("statuses") Collection<OrderStatus> statuses);
+    long countByInstrumentId(UUID instrumentId);
+    long countByInstrumentIdAndStatusIn(UUID instrumentId, Collection<OrderStatus> statuses);
 }

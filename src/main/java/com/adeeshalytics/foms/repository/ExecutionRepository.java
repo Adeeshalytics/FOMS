@@ -8,4 +8,5 @@ import org.springframework.data.domain.Pageable;
 
 public interface ExecutionRepository extends JpaRepository<Execution, UUID> {
     Page<Execution> findByBuyOrderIdOrSellOrderId(UUID buyOrderId, UUID sellOrderId, Pageable pageable);
+    long countByInstrumentId(UUID instrumentId);
 }
