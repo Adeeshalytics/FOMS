@@ -1,31 +1,96 @@
-# Financial Market Order Management System
+# Financial Market Order Management System (FOMS)
 
-FOMS is a single-instance, simulated exchange built as a Java portfolio project. It is for learning and demonstration only: it does not connect to real markets, accepts no real-money trades, and is **not production trading infrastructure**.
+FOMS is a Java 21 / Spring Boot simulated exchange for portfolio and learning use. It never connects to a real venue, does not authenticate traders, and must not be used to trade real assets or money.
 
-## Stage 1 status
+## Implemented scope
 
-The project foundation now provides a Java 21 / Spring Boot 3 application, PostgreSQL configuration, Flyway-managed initial schema, and pinned build dependencies. The schema establishes instruments, orders, executions, and audit events with core integrity constraints and indexes.
+- PostgreSQL/Flyway persistence for instruments, orders, executions and audit events
+- Limit and market order validation, lifecycle states, amendments and cancellation
+- Deterministic, price-time matching with partial fills at the resting order's price
+- Market orders are **IOC**: available liquidity is consumed and the remainder is cancelled
+- Self-trade prevention stops matching at the first same-client order; it does not bypass that order to take later liquidity
+- Per-instrument in-process serialization and optimistic entity versions
+- Idempotent submission on `(clientId, clientOrderId)`: the same details replay the existing order (`200`); changed details return `409`
+- Versioned REST API for instruments and orders, OpenAPI UI, health endpoint, validation/error DTOs, pagination
 
-Subsequent stages will add the domain model, matching engine, REST API, idempotency, recovery, Docker support, and complete operational documentation.
+The API currently exposes instrument and order endpoints. Execution history, order-book views and statistics endpoints are planned work, not implemented functionality.
 
-## Prerequisites
+## Architecture
 
-- JDK 21
-- Maven 3.9+ (or the included Maven wrapper once bootstrapped)
-- PostgreSQL 16+
+```mermaid
+flowchart LR
+  C[REST client] --> A[Spring MVC / DTO validation]
+  A --> S[Order service]
+  S --> L[Per-instrument lock]
+  L --> M[Price-time matcher]
+  M --> P[(PostgreSQL: orders, executions, audit)]
+  F[Flyway] --> P
+```
 
-Set `FOMS_DB_URL`, `FOMS_DB_USERNAME`, and `FOMS_DB_PASSWORD` for a non-default local database. The defaults target a local `foms` database with the development-only `foms` username/password.
+The service reads active persisted orders during each submission, so PostgreSQL is the durable source of truth rather than an unpersisted in-memory order book. A transaction persists order state changes, executions and audit events together. In-process locks make this safe only for one application instance; they provide no cross-instance coordination.
 
-## Run
+## Matching and lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> NEW
+  NEW --> ACCEPTED
+  ACCEPTED --> PARTIALLY_FILLED
+  ACCEPTED --> FILLED
+  PARTIALLY_FILLED --> PARTIALLY_FILLED
+  PARTIALLY_FILLED --> FILLED
+  ACCEPTED --> CANCELLED
+  PARTIALLY_FILLED --> CANCELLED
+```
+
+For a buy, the lowest ask wins; for a sell, the highest bid wins. Equal prices use the earliest acceptance time. A crossing incoming order can execute against several resting orders. Example: a buy for 6 meets asks of 3 @ 99.00 then 5 @ 100.00, producing fills of 3 @ 99.00 and 3 @ 100.00. Quantity is integral and monetary values are `BigDecimal`; floating-point financial values are not used.
+
+An amendment resets the accepted timestamp, deliberately losing queue priority. It currently changes eligible orders but does not immediately re-run matching; clients should submit a replacement order when immediate execution is required.
+
+## Run locally
+
+The fastest route is Docker:
+
+```bash
+docker compose up --build
+```
+
+Then use [Swagger UI](http://localhost:8080/swagger-ui.html), [OpenAPI JSON](http://localhost:8080/api-docs), or [health](http://localhost:8080/actuator/health).
+
+To run without Docker, provide a PostgreSQL 16+ database and set `FOMS_DB_URL`, `FOMS_DB_USERNAME` and `FOMS_DB_PASSWORD`; then use JDK 21 and Maven:
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-Health will be exposed at `/actuator/health`; API documentation will be available at `/swagger-ui.html` once REST endpoints are introduced.
+The Compose credentials are development-only defaults. Do not put production secrets in the repository or an `.env` file.
 
-## Design constraints
+## Example
 
-- Financial values use `BigDecimal` in application code; no floating-point prices or monetary values.
-- PostgreSQL is the planned durable source of truth.
-- The intended matching design serializes processing per instrument and is not safe for multiple application instances.
+```bash
+curl -X POST http://localhost:8080/api/v1/instruments \
+  -H 'Content-Type: application/json' \
+  -d '{"symbol":"ACME","name":"Acme Corp","assetType":"EQUITY","currency":"USD","tickSize":0.01}'
+
+curl -X POST http://localhost:8080/api/v1/orders \
+  -H 'Content-Type: application/json' \
+  -d '{"clientId":"demo-a","clientOrderId":"ask-1","symbol":"ACME","side":"SELL","orderType":"LIMIT","quantity":10,"limitPrice":100.00}'
+```
+
+## Verification
+
+The current focused tests cover lifecycle validation and fills, price/time priority, non-crossing limits, self-trade behavior, and an MVC validation response. Run them with:
+
+```bash
+./mvnw test
+```
+
+This workspace has JDK 25 rather than JDK 21. For its local run only, the Mockito web-slice test required `-DargLine=-Dnet.bytebuddy.experimental=true`, because the bundled Byte Buddy version does not yet officially recognize JDK 25. This is not expected on the supported JDK 21.
+
+## Limitations and next work
+
+- Single process only; locks do not coordinate multiple instances.
+- No user authentication or authorization; `clientId` is a simulation field, not a security identity.
+- No real-market connectivity, high availability, risk controls, trading calendar, settlement, or regulatory controls.
+- No implemented recovery cache because matching is based on freshly queried persisted orders; dedicated order-book recovery and read-model endpoints remain to be added.
+- Testcontainers, full PostgreSQL integration tests, concurrency tests, execution/order-book/statistics APIs, and measured benchmarks remain future work. No performance claims are made.

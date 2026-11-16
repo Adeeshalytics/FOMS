@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: foms
+      POSTGRES_USER: foms
+      POSTGRES_PASSWORD: foms
+    ports:
+      - "5432:5432"
+    volumes:
+      - foms-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U foms -d foms"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  foms:
+    build: .
+    environment:
+      FOMS_DB_URL: jdbc:postgresql://postgres:5432/foms
+      FOMS_DB_USERNAME: foms
+      FOMS_DB_PASSWORD: foms
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes:
+  foms-postgres-data:
