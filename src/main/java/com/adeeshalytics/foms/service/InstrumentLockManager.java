@@ -9,5 +9,7 @@ import java.util.concurrent.locks.ReentrantLock;
 @Component
 public class InstrumentLockManager {
     private final ConcurrentHashMap<UUID, ReentrantLock> locks = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ReentrantLock> idempotencyLocks = new ConcurrentHashMap<>();
     public ReentrantLock forInstrument(UUID instrumentId) { return locks.computeIfAbsent(instrumentId, ignored -> new ReentrantLock(true)); }
+    public ReentrantLock forIdempotencyKey(String clientId, String clientOrderId) { return idempotencyLocks.computeIfAbsent(clientId + "\u0000" + clientOrderId, ignored -> new ReentrantLock(true)); }
 }

@@ -16,8 +16,9 @@ public class OrderController {
     private final OrderService orders;
     public OrderController(OrderService orders) { this.orders = orders; }
     @PostMapping public ResponseEntity<OrderResponse> submit(@Valid @RequestBody OrderRequest request) {
-        var order = orders.submit(new SubmitOrderCommand(request.clientId(), request.clientOrderId(), request.symbol(), request.side(), request.orderType(), request.quantity(), request.limitPrice()));
-        return ResponseEntity.created(URI.create("/api/v1/orders/" + order.getId())).body(OrderResponse.from(order));
+        var submission = orders.submit(new SubmitOrderCommand(request.clientId(), request.clientOrderId(), request.symbol(), request.side(), request.orderType(), request.quantity(), request.limitPrice()));
+        if (submission.replay()) return ResponseEntity.ok(OrderResponse.from(submission.order()));
+        return ResponseEntity.created(URI.create("/api/v1/orders/" + submission.order().getId())).body(OrderResponse.from(submission.order()));
     }
     @GetMapping public Page<OrderResponse> list(@PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) { return orders.list(pageable).map(OrderResponse::from); }
     @GetMapping("/{orderId}") public OrderResponse get(@PathVariable UUID orderId) { return OrderResponse.from(orders.find(orderId)); }

@@ -23,7 +23,20 @@ public class OrderService {
     }
 
     @Transactional
-    public Order submit(SubmitOrderCommand command) {
+    public OrderSubmission submit(SubmitOrderCommand command) {
+        ReentrantLock idempotencyLock = locks.forIdempotencyKey(command.clientId(), command.clientOrderId());
+        idempotencyLock.lock();
+        try {
+            var existing = orders.findByClientIdAndClientOrderId(command.clientId(), command.clientOrderId());
+            if (existing.isPresent()) {
+                if (!sameSubmission(existing.get(), command)) throw new IllegalStateException("client order ID was previously used with different details");
+                return new OrderSubmission(existing.get(), true);
+            }
+            return new OrderSubmission(submitNew(command), false);
+        } finally { idempotencyLock.unlock(); }
+    }
+
+    private Order submitNew(SubmitOrderCommand command) {
         Instrument instrument = instruments.findBySymbol(command.symbol()).orElseThrow(() -> new ResourceNotFoundException("instrument not found"));
         if (!instrument.isActive()) throw new IllegalStateException("instrument is inactive");
         ReentrantLock lock = locks.forInstrument(instrument.getId());
@@ -50,6 +63,15 @@ public class OrderService {
             }
             return incoming;
         } finally { lock.unlock(); }
+    }
+
+    private boolean sameSubmission(Order order, SubmitOrderCommand command) {
+        return order.getInstrument().getSymbol().equals(command.symbol())
+                && order.getSide() == command.side()
+                && order.getOrderType() == command.orderType()
+                && order.getOriginalQuantity() == command.quantity()
+                && ((order.getLimitPrice() == null && command.limitPrice() == null)
+                    || (order.getLimitPrice() != null && command.limitPrice() != null && order.getLimitPrice().compareTo(command.limitPrice()) == 0));
     }
 
     @Transactional(readOnly = true)
