@@ -48,17 +48,7 @@ public class OrderService {
             incoming.accept(Instant.now());
             orders.save(incoming);
             auditEvents.save(new AuditEvent(incoming, "ACCEPTED", "{}"));
-            List<Order> resting = orders.findActiveByInstrumentId(instrument.getId(), List.of(OrderStatus.ACCEPTED, OrderStatus.PARTIALLY_FILLED));
-            for (MatchCandidate match : matcher.match(incoming, resting)) {
-                Order passive = match.restingOrder();
-                incoming.applyFill(match.quantity(), match.executionPrice());
-                passive.applyFill(match.quantity(), match.executionPrice());
-                Order buy = incoming.getSide() == OrderSide.BUY ? incoming : passive;
-                Order sell = incoming.getSide() == OrderSide.SELL ? incoming : passive;
-                executions.save(new Execution(buy, sell, match.quantity(), match.executionPrice(), Instant.now()));
-                auditEvents.save(new AuditEvent(incoming, incoming.getStatus() == OrderStatus.FILLED ? "FILLED" : "PARTIALLY_FILLED", "{}"));
-                auditEvents.save(new AuditEvent(passive, passive.getStatus() == OrderStatus.FILLED ? "FILLED" : "PARTIALLY_FILLED", "{}"));
-            }
+            matchIncoming(incoming, instrument);
             if (incoming.getOrderType() == OrderType.MARKET && incoming.remainingQuantity() > 0) {
                 incoming.cancel();
                 auditEvents.save(new AuditEvent(incoming, "CANCELLED", "{\"reason\":\"market IOC remainder\"}"));
@@ -75,6 +65,20 @@ public class OrderService {
                 && order.getOriginalQuantity() == command.quantity()
                 && ((order.getLimitPrice() == null && command.limitPrice() == null)
                     || (order.getLimitPrice() != null && command.limitPrice() != null && order.getLimitPrice().compareTo(command.limitPrice()) == 0));
+    }
+
+    private void matchIncoming(Order incoming, Instrument instrument) {
+        List<Order> resting = orders.findActiveByInstrumentId(instrument.getId(), List.of(OrderStatus.ACCEPTED, OrderStatus.PARTIALLY_FILLED));
+        for (MatchCandidate match : matcher.match(incoming, resting)) {
+            Order passive = match.restingOrder();
+            incoming.applyFill(match.quantity(), match.executionPrice());
+            passive.applyFill(match.quantity(), match.executionPrice());
+            Order buy = incoming.getSide() == OrderSide.BUY ? incoming : passive;
+            Order sell = incoming.getSide() == OrderSide.SELL ? incoming : passive;
+            executions.save(new Execution(buy, sell, match.quantity(), match.executionPrice(), Instant.now()));
+            auditEvents.save(new AuditEvent(incoming, incoming.getStatus() == OrderStatus.FILLED ? "FILLED" : "PARTIALLY_FILLED", "{}"));
+            auditEvents.save(new AuditEvent(passive, passive.getStatus() == OrderStatus.FILLED ? "FILLED" : "PARTIALLY_FILLED", "{}"));
+        }
     }
 
     @Transactional(readOnly = true)
@@ -98,7 +102,7 @@ public class OrderService {
     public Order amend(java.util.UUID orderId, long quantity, java.math.BigDecimal price) {
         Order order = find(orderId);
         ReentrantLock lock = locks.forInstrument(order.getInstrument().getId()); lock.lock();
-        try { order.amend(quantity, price, Instant.now()); auditEvents.save(new AuditEvent(order, "AMENDED", "{}")); events.publishEvent(new OrderBookRefreshRequested(order.getInstrument().getId())); return order; }
+        try { order.amend(quantity, price, Instant.now()); auditEvents.save(new AuditEvent(order, "AMENDED", "{}")); matchIncoming(order, order.getInstrument()); events.publishEvent(new OrderBookRefreshRequested(order.getInstrument().getId())); return order; }
         finally { lock.unlock(); }
     }
 }
