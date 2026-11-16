@@ -13,7 +13,7 @@ FOMS is a Java 21 / Spring Boot simulated exchange for portfolio and learning us
 - Idempotent submission on `(clientId, clientOrderId)`: the same details replay the existing order (`200`); changed details return `409`
 - Versioned REST API for instruments and orders, OpenAPI UI, health endpoint, validation/error DTOs, pagination
 
-The API currently exposes instrument and order endpoints. Execution history, order-book views and statistics endpoints are planned work, not implemented functionality.
+The API exposes instruments, order management, executions, audit history, order-book views, and basic statistics.
 
 ## Architecture
 
@@ -76,6 +76,8 @@ curl -X POST http://localhost:8080/api/v1/orders \
   -H 'Content-Type: application/json' \
   -d '{"clientId":"demo-a","clientOrderId":"ask-1","symbol":"ACME","side":"SELL","orderType":"LIMIT","quantity":10,"limitPrice":100.00}'
 ```
+
+Additional read endpoints include `GET /api/v1/executions`, `GET /api/v1/orders/{orderId}/executions`, `GET /api/v1/orders/{orderId}/audit-events`, `GET /api/v1/order-books/{symbol}`, and `GET /api/v1/statistics/overview`.
 
 ## Verification
 
