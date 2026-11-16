@@ -14,4 +14,6 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     Optional<Order> findByClientIdAndClientOrderId(String clientId, String clientOrderId);
     @Query("select o from Order o join fetch o.instrument where o.instrument.id = :instrumentId and o.status in :statuses")
     List<Order> findActiveByInstrumentId(@Param("instrumentId") UUID instrumentId, @Param("statuses") Collection<OrderStatus> statuses);
+    @Query("select o from Order o join fetch o.instrument where o.status in :statuses")
+    List<Order> findAllActive(@Param("statuses") Collection<OrderStatus> statuses);
 }

@@ -3,6 +3,7 @@ package com.adeeshalytics.foms.service;
 import com.adeeshalytics.foms.domain.*;
 import com.adeeshalytics.foms.repository.*;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
@@ -15,11 +16,12 @@ public class OrderService {
     private final ExecutionRepository executions;
     private final AuditEventRepository auditEvents;
     private final InstrumentLockManager locks;
+    private final ApplicationEventPublisher events;
     private final PriceTimeMatcher matcher = new PriceTimeMatcher();
 
     public OrderService(InstrumentRepository instruments, OrderRepository orders, ExecutionRepository executions,
-                        AuditEventRepository auditEvents, InstrumentLockManager locks) {
-        this.instruments = instruments; this.orders = orders; this.executions = executions; this.auditEvents = auditEvents; this.locks = locks;
+                        AuditEventRepository auditEvents, InstrumentLockManager locks, ApplicationEventPublisher events) {
+        this.instruments = instruments; this.orders = orders; this.executions = executions; this.auditEvents = auditEvents; this.locks = locks; this.events = events;
     }
 
     @Transactional
@@ -61,6 +63,7 @@ public class OrderService {
                 incoming.cancel();
                 auditEvents.save(new AuditEvent(incoming, "CANCELLED", "{\"reason\":\"market IOC remainder\"}"));
             }
+            events.publishEvent(new OrderBookRefreshRequested(instrument.getId()));
             return incoming;
         } finally { lock.unlock(); }
     }
@@ -87,7 +90,7 @@ public class OrderService {
     public Order cancel(java.util.UUID orderId) {
         Order order = find(orderId);
         ReentrantLock lock = locks.forInstrument(order.getInstrument().getId()); lock.lock();
-        try { order.cancel(); auditEvents.save(new AuditEvent(order, "CANCELLED", "{}")); return order; }
+        try { order.cancel(); auditEvents.save(new AuditEvent(order, "CANCELLED", "{}")); events.publishEvent(new OrderBookRefreshRequested(order.getInstrument().getId())); return order; }
         finally { lock.unlock(); }
     }
 
@@ -95,7 +98,7 @@ public class OrderService {
     public Order amend(java.util.UUID orderId, long quantity, java.math.BigDecimal price) {
         Order order = find(orderId);
         ReentrantLock lock = locks.forInstrument(order.getInstrument().getId()); lock.lock();
-        try { order.amend(quantity, price, Instant.now()); auditEvents.save(new AuditEvent(order, "AMENDED", "{}")); return order; }
+        try { order.amend(quantity, price, Instant.now()); auditEvents.save(new AuditEvent(order, "AMENDED", "{}")); events.publishEvent(new OrderBookRefreshRequested(order.getInstrument().getId())); return order; }
         finally { lock.unlock(); }
     }
 }

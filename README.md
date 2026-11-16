@@ -92,5 +92,5 @@ This workspace has JDK 25 rather than JDK 21. For its local run only, the Mockit
 - Single process only; locks do not coordinate multiple instances.
 - No user authentication or authorization; `clientId` is a simulation field, not a security identity.
 - No real-market connectivity, high availability, risk controls, trading calendar, settlement, or regulatory controls.
-- No implemented recovery cache because matching is based on freshly queried persisted orders; dedicated order-book recovery and read-model endpoints remain to be added.
-- Testcontainers, full PostgreSQL integration tests, concurrency tests, execution/order-book/statistics APIs, and measured benchmarks remain future work. No performance claims are made.
+- The in-process aggregated order-book read model is rebuilt from PostgreSQL at startup and refreshed only after committed order changes. Matching still queries persisted active orders; cross-instance coordination is not provided.
+- Testcontainers integration coverage is included but depends on a Docker environment visible to the Testcontainers Java client. Concurrency tests, execution/order-book/statistics APIs, and measured benchmarks remain future work. No performance claims are made.
